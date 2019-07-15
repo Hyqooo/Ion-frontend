@@ -13,7 +13,7 @@
 
 void test_keywords() {
     assert(is_keyword(str_intern("while")) == true);
-    assert(is_keyword(str_intern("fuck")) == false);
+    assert(is_keyword(str_intern("somethingelse")) == false);
 }
 
 int main() {

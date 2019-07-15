@@ -61,10 +61,18 @@ void buf_test() {
     buf_free(asdf);
 }
 
-// Arena allocator
-#define ALIGN_DOWN(n, a) ((n) & ~((a) - 1))
-#define ALIGN_UP(n, a) 
+inline bool is_power_of_two(uintptr_t x) {
+    return (x != 0) && ((x & (x - 1)) == 0);
+}
 
+// Arena allocator
+#define DEFAULT_ALIGNMENT 8
+#define ARENA_BLOCK_SIZE 1024
+
+#define ALIGN_DOWN(n, a) ((n) & ~((a) - 1))
+#define ALIGN_UP(n, a) ALIGN_DOWN((n) + (a) - 1, (a))
+#define ALIGN_PTR_DOWN(p, a) ((void *)ALIGN_DOWN((uintptr_t)(p), (a)))
+#define ALIGN_PTR_UP(p, a) ((void *)ALIGN_UP((uintptr_t)(p), (a)))
 
 typedef struct Arena {
     char *ptr;
@@ -72,13 +80,25 @@ typedef struct Arena {
     char **blocks;
 }Arena;
 
-#define ARENA_ALIGNMENT 8
-#define ARENA_BLOCK_SIZE 1024
-
 void arena_grow(Arena *arena, size_t min_size) {
-    size_t size = ALIGN_UP(MAX(ARENA_BLOCK_SIZE, min_size), ARENA_ALIGNMENT);
+    size_t size = ALIGN_UP(MAX(ARENA_BLOCK_SIZE, min_size), DEFAULT_ALIGNMENT);
+    arena->ptr = xmalloc(size);
+    assert(arena->ptr == ALIGN_PTR_DOWN(arena->ptr, DEFAULT_ALIGNMENT));
+    arena->end = arena->ptr + size;
+    buf_push(arena->blocks, arena->ptr);
 }
 
+void *arena_alloc(Arena *arena, size_t size) {
+    if (size > (size_t)(arena->ptr - arena->end)) {
+        arena_grow(arena, size);
+        assert(size <= (size_t)(arena->ptr - arena->end));
+    }
+    void *ptr = arena->ptr;
+    arena->ptr = ALIGN_PTR_UP(arena->ptr + size, DEFAULT_ALIGNMENT);
+    assert(arena->ptr <= arena->end);
+    assert(ptr == ALIGN_PTR_DOWN(ptr, DEFAULT_ALIGNMENT));
+    return ptr;
+}
 
 // String interning
 typedef struct InternStr {
@@ -86,6 +106,7 @@ typedef struct InternStr {
     const char *str;
 } InternStr;
 
+Arena str_arena;
 static InternStr *interns;
 
 const char *str_intern_range(const char *start, const char *end) {
@@ -95,7 +116,7 @@ const char *str_intern_range(const char *start, const char *end) {
             return interns[i].str;
         }
     }
-    char *str = xmalloc(len + 1);
+    char *str = arena_alloc(&str_arena, len + 1);
     memcpy(str, start, len);
     str[len] = 0;
     buf_push(interns, ((InternStr){len, str}));
