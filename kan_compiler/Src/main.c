@@ -19,6 +19,7 @@ void test_keywords() {
 int main() {
     init_keywords();
     test_keywords();
+    test_lex();
 
     buf_test();
     str_intern_test();
