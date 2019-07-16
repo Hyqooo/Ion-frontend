@@ -30,7 +30,9 @@ typedef enum TokenKind {
     TOKEN_SEMICOLON,
     TOKEN_KEYWORD,
     TOKEN_INT,
-    TOKEN_FLOAT, // Unsupported
+    TOKEN_FLOAT,
+    TOKEN_STRING,
+    TOKEN_CHAR,
     TOKEN_NAME,
     TOKEN_NOT,
     TOKEN_NEG,
@@ -80,6 +82,7 @@ typedef struct Token {
     const char *end;
     union {
         int64_t int_val;
+        double float_val;
         const char *name;
         const char *str_val;
     };
@@ -152,26 +155,191 @@ inline bool is_keyword(const char *name) {
         } \
         break
 
+// This array can be extended to hexadecimal numbers
+uint8_t char_to_digit[256] = {
+    ['0'] = 0,
+    ['1'] = 1,
+    ['2'] = 2,
+    ['3'] = 3,
+    ['4'] = 4,
+    ['5'] = 5,
+    ['6'] = 6,
+    ['7'] = 7,
+    ['8'] = 8,
+    ['9'] = 9
+};
+
+uint8_t escape_to_char[256] = {
+    ['n'] = '\n',
+    ['r'] = '\r',
+    ['b'] = '\b',
+    ['v'] = '\v',
+    ['t'] = '\t',
+    ['a'] = '\a',
+    ['0'] = '\0',
+};
+
+void process_str() {
+    assert(*stream == '"');
+    stream++;
+    char *str = NULL;
+    while (*stream && *stream != '"') {
+        char val = *stream;
+        if (val == '\n') {
+            // Error: string literal cannot contain newline
+            assert(0);
+            break;
+        } else if (val == '\\') {
+            stream++;
+            val = escape_to_char[*(unsigned char*)stream];
+            if (val == 0 && *stream != '0') {
+                // Error: Invalid string literal escape
+                assert(0);
+            }
+        }
+        buf_push(str, val);
+        stream++;
+    }
+    if (*stream) {
+        assert(*stream == '"');
+        stream++;
+    } else {
+        // Error: Unxpected end of file withing string literal.
+        assert(0);
+    }
+    buf_push(str, 0);
+    token.kind = TOKEN_STRING;
+    token.str_val = str;
+}
+
+void process_char() {
+    assert(*stream == '\'');
+    stream++;
+    char val = 0;
+    if (*stream == '\'') {
+        // Error: char literal cannot be empty
+        stream++;
+        assert(0);
+    } else if (*stream == '\n') {
+        // Error: char literal cannot contain newline
+        assert(0);
+    } else if (*stream == '\\') {
+        stream++;
+        val = escape_to_char[*(unsigned char*)stream];
+        if (val == 0 && *stream != 0) {
+            // Error: Invalid char literal escape
+            assert(0);
+        }
+        stream++;
+    } else {
+        val = *stream;
+        stream++;
+    }
+    if (*stream != '\'') {
+        // Error: expecting closing char quote 
+        assert(0);
+    } else {
+        stream++;
+    }
+    token.kind = TOKEN_CHAR; // TODO: check if there's real need in token.mod as bitwise did.
+    token.int_val = val;
+}
+
+void process_int() {
+    uint64_t val = 0;
+    while (1) {
+        uint64_t digit = char_to_digit[*(unsigned char *)stream];
+        if (digit == 0 && *stream != '0') {
+            break;
+        }
+        if (val > (UINT64_MAX - digit) / 10) {
+            // integer overflow
+            while (isdigit(*stream)) {
+                stream++;
+            }
+            val = 0;
+            assert(0);
+            break;
+        }
+        val = val * 10 + digit;
+        stream++;
+    }
+    token.kind = TOKEN_INT;
+    token.int_val = val;
+}
+
+void process_float() {
+    const char *start = stream;
+    while (isdigit(*stream)) {
+        stream++;
+    }
+    if (*stream == '.') {
+        stream++;
+    }
+    while (isdigit(*stream)) {
+        stream++;
+    }
+    if (tolower(*stream) == 'e') {
+        stream++;
+        if (*stream == '+' || *stream == '-') {
+            stream++;
+        }
+        if (!isdigit(*stream)) {
+            // syntax error
+            assert(0);
+        }
+        while (isdigit(*stream)) {
+            stream++;
+        }
+    }
+    double val = strtod(start, NULL);
+    if (val == HUGE_VAL) {
+        // TODO: test this
+        assert(0);
+        exit(1);
+    }
+    token.kind = TOKEN_FLOAT;
+    token.float_val = val;
+}
+
 void read_token() {
 repeat:
     token.start = stream;
     switch (*stream) {
         case '\t': case '\b': case '\n': case '\v': case '\r': case ' ':
-            stream++;
-            goto repeat;
-            break;
-        case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': case '0': {
-
-            // CLEANUP
-            // TODO add string and char literals, add floating point numbers 
-            int64_t val = 0;
-            while (isdigit(*stream)) {
-                val += *stream - '0';
-                val *= 10;
+            while (isspace(*stream)) {
                 stream++;
             }
-            token.kind = TOKEN_INT;
-            token.int_val = val / 10;
+            goto repeat;
+            break;
+        case '\'': {
+            process_char();
+            break;
+        }
+        case '"': {
+            process_str();
+            break;
+        }
+        case '.': {
+            if (isdigit(stream[1])) {
+                process_float();
+            } else {
+                token.kind = TOKEN_DOT;
+                stream++;
+            }
+            break;
+        }
+        case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': case '0': {
+            while (isdigit(*stream)) {
+                stream++;
+            }
+            char c = *stream;
+            stream = token.start;
+            if (c == '.' || tolower(c) == 'e') {
+                process_float();
+            } else {
+                process_int();
+            }
             break;
         }
         case 'a': case 'b': case 'c': case 'd': case 'e': case 'f': case 'g': case 'h': case 'i': case 'j':
@@ -215,7 +383,6 @@ repeat:
                     token.kind = TOKEN_RSHIFT_ASSIGN;
                     stream++;
                 }
-            
             } else if (*stream == '=') {
                 token.kind = TOKEN_GTEQ;
                 stream++;
@@ -231,7 +398,6 @@ repeat:
         CASE1('\0', TOKEN_EOF);
         CASE1(',', TOKEN_COMMA);
         CASE1(';', TOKEN_SEMICOLON);
-        CASE1('.', TOKEN_DOT);
         CASE1('?', TOKEN_QUESTION);
         CASE1('!', TOKEN_NOT);
         CASE1('~', TOKEN_NEG);
@@ -245,6 +411,8 @@ repeat:
         CASE3('|', TOKEN_OR, '=', TOKEN_OR_ASSIGN, '|', TOKEN_OR_OR);
         CASE3('+', TOKEN_ADD, '=', TOKEN_ADD_ASSIGN, '+', TOKEN_INC);
         CASE3('-', TOKEN_SUB, '=', TOKEN_SUB_ASSIGN, '-', TOKEN_DEC);
+        default: 
+            assert(0);
     }
     token.end = stream;
 }
@@ -261,6 +429,11 @@ void init_stream(const char *str) {
     assert(token.kind == TOKEN_INT); \
     assert(token.int_val == val)
 
+#define as_float(val) \
+    read_token(); \
+    assert(token.kind == TOKEN_FLOAT); \
+    assert(token.float_val == val)
+
 #define as_name(n) \
     read_token(); \
     assert(token.kind == TOKEN_NAME); \
@@ -274,6 +447,16 @@ void init_stream(const char *str) {
 #define as_kind(k) \
     read_token(); \
     assert(token.kind == k)
+
+#define as_char_literal(ch) \
+    read_token(); \
+    assert(token.kind == TOKEN_CHAR); \
+    assert(token.int_val == (int64_t)ch)
+
+#define as_string_literal(string) \
+    read_token(); \
+    assert(token.kind == TOKEN_STRING); \
+    assert(str_intern(token.str_val) == str_intern(string))
 
 void test_lex() {
     init_stream("this is a good string");
@@ -330,4 +513,17 @@ void test_lex() {
     as_kind(TOKEN_ASSIGN);
     as_int(0);
     as_kind(TOKEN_SEMICOLON);
+
+    init_stream("'a' \"sadf12\" 'd' ");
+    assert(token.kind == TOKEN_CHAR); 
+    assert(token.int_val == (int64_t)'a');
+    as_string_literal("sadf12");
+    as_char_literal('d');
+    
+    init_stream("213.34 34 23e3  .34");
+    assert(token.kind == TOKEN_FLOAT);
+    assert(token.float_val == 213.34);
+    as_int(34);
+    as_float(23e3);
+    as_float(.34);
 }
