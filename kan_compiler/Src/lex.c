@@ -399,8 +399,8 @@ repeat:
         CASE1(',', TOKEN_COMMA);
         CASE1(';', TOKEN_SEMICOLON);
         CASE1('?', TOKEN_QUESTION);
-        CASE1('!', TOKEN_NOT);
         CASE1('~', TOKEN_NEG);
+        CASE2('!', TOKEN_NOT, '=', TOKEN_NOTEQ);
         CASE2('/', TOKEN_DIV, '=', TOKEN_DIV_ASSIGN);
         CASE2('%', TOKEN_MOD, '=', TOKEN_MOD_ASSIGN);
         CASE2('*', TOKEN_MUL, '=', TOKEN_MUL_ASSIGN);
@@ -515,15 +515,39 @@ void test_lex() {
     as_kind(TOKEN_SEMICOLON);
 
     init_stream("'a' \"sadf12\" 'd' ");
-    assert(token.kind == TOKEN_CHAR); 
+    assert(token.kind == TOKEN_CHAR);
     assert(token.int_val == (int64_t)'a');
     as_string_literal("sadf12");
     as_char_literal('d');
-    
+
     init_stream("213.34 34 23e3  .34");
     assert(token.kind == TOKEN_FLOAT);
     assert(token.float_val == 213.34);
     as_int(34);
     as_float(23e3);
     as_float(.34);
+
+    init_stream("func main(argc:int, argv:*char[]): int { return 0; }");
+    assert(token.kind = TOKEN_KEYWORD);
+    assert(str_intern(token.name) == str_intern("func"));
+    as_name("main");
+    as_kind(TOKEN_LPAREN);
+    as_name("argc");
+    as_kind(TOKEN_COLON);
+    as_name("int");
+    as_kind(TOKEN_COMMA);
+    as_name("argv");
+    as_kind(TOKEN_COLON);
+    as_kind(TOKEN_MUL);
+    as_name("char");
+    as_kind(TOKEN_LBRACKET);
+    as_kind(TOKEN_RBRACKET);
+    as_kind(TOKEN_RPAREN);
+    as_kind(TOKEN_COLON);
+    as_name("int");
+    as_kind(TOKEN_LBRACE);
+    as_keyword("return");
+    as_int(0);
+    as_kind(TOKEN_SEMICOLON);
+    as_kind(TOKEN_RBRACE);
 }
