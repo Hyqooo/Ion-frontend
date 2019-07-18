@@ -14,6 +14,7 @@ const char *keyword_struct;
 const char *keyword_const;
 const char *keyword_var;
 const char *keyword_cast;
+const char *keyword_for;
 
 typedef enum TokenKind {
     TOKEN_EOF,
@@ -55,7 +56,7 @@ typedef enum TokenKind {
     TOKEN_GT, 
     TOKEN_LTEQ,
     TOKEN_GTEQ,
-
+    
     TOKEN_AND_AND,
     TOKEN_OR_OR,
     // Assignment operators
@@ -127,33 +128,33 @@ inline bool is_keyword(const char *name) {
 }
 
 #define CASE1(c, k) \
-    case c: \
-        token.kind = k; \
-        stream++; \
-        break
+case c: \
+token.kind = k; \
+stream++; \
+break
 
 #define CASE2(c1, k1, c2, k2) \
-    case c1: \
-        token.kind = k1; \
-        stream++; \
-        if (*stream == c2) { \
-            token.kind = k2; \
-            stream++; \
-        } \
-        break
-        
+case c1: \
+token.kind = k1; \
+stream++; \
+if (*stream == c2) { \
+    token.kind = k2; \
+    stream++; \
+} \
+break
+
 #define CASE3(c1, k1, c2, k2, c3, k3) \
-    case c1: \
-        token.kind = k1; \
-        stream++; \
-        if (*stream == c2) { \
-            token.kind = k2; \
-            stream++; \
-        } else if (*stream == c3) { \
-            token.kind = k3; \
-            stream++; \
-        } \
-        break
+case c1: \
+token.kind = k1; \
+stream++; \
+if (*stream == c2) { \
+    token.kind = k2; \
+    stream++; \
+} else if (*stream == c3) { \
+    token.kind = k3; \
+    stream++; \
+} \
+break
 
 // This array can be extended to hexadecimal numbers
 uint8_t char_to_digit[256] = {
@@ -303,15 +304,15 @@ void process_float() {
 }
 
 void read_token() {
-repeat:
+    repeat:
     token.start = stream;
     switch (*stream) {
         case '\t': case '\b': case '\n': case '\v': case '\r': case ' ':
-            while (isspace(*stream)) {
-                stream++;
-            }
-            goto repeat;
-            break;
+        while (isspace(*stream)) {
+            stream++;
+        }
+        goto repeat;
+        break;
         case '\'': {
             process_char();
             break;
@@ -412,7 +413,7 @@ repeat:
         CASE3('+', TOKEN_ADD, '=', TOKEN_ADD_ASSIGN, '+', TOKEN_INC);
         CASE3('-', TOKEN_SUB, '=', TOKEN_SUB_ASSIGN, '-', TOKEN_DEC);
         default: 
-            assert(0);
+        assert(0);
     }
     token.end = stream;
 }
@@ -425,38 +426,38 @@ void init_stream(const char *str) {
 #define my_for(last) for (int i = 0; i < last; i++)
 
 #define as_int(val) \
-    read_token(); \
-    assert(token.kind == TOKEN_INT); \
-    assert(token.int_val == val)
+read_token(); \
+assert(token.kind == TOKEN_INT); \
+assert(token.int_val == val)
 
 #define as_float(val) \
-    read_token(); \
-    assert(token.kind == TOKEN_FLOAT); \
-    assert(token.float_val == val)
+read_token(); \
+assert(token.kind == TOKEN_FLOAT); \
+assert(token.float_val == val)
 
 #define as_name(n) \
-    read_token(); \
-    assert(token.kind == TOKEN_NAME); \
-    assert(str_intern(token.name) == str_intern(n))
+read_token(); \
+assert(token.kind == TOKEN_NAME); \
+assert(str_intern(token.name) == str_intern(n))
 
 #define as_keyword(n) \
-    read_token(); \
-    assert(token.kind == TOKEN_KEYWORD); \
-    assert(str_intern(token.name) == str_intern(n))
+read_token(); \
+assert(token.kind == TOKEN_KEYWORD); \
+assert(str_intern(token.name) == str_intern(n))
 
 #define as_kind(k) \
-    read_token(); \
-    assert(token.kind == k)
+read_token(); \
+assert(token.kind == k)
 
 #define as_char_literal(ch) \
-    read_token(); \
-    assert(token.kind == TOKEN_CHAR); \
-    assert(token.int_val == (int64_t)ch)
+read_token(); \
+assert(token.kind == TOKEN_CHAR); \
+assert(token.int_val == (int64_t)ch)
 
 #define as_string_literal(string) \
-    read_token(); \
-    assert(token.kind == TOKEN_STRING); \
-    assert(str_intern(token.str_val) == str_intern(string))
+read_token(); \
+assert(token.kind == TOKEN_STRING); \
+assert(str_intern(token.str_val) == str_intern(string))
 
 void test_lex() {
     init_stream("this is a good string");
@@ -474,7 +475,7 @@ void test_lex() {
     as_int(2);
     as_kind(TOKEN_RPAREN);
     as_name("nnn");
-
+    
     init_stream("if while(x < 3) x++;");
     assert(token.kind == TOKEN_KEYWORD);
     assert(str_intern(token.name) == str_intern("if"));
@@ -488,7 +489,7 @@ void test_lex() {
     as_name("x");
     as_kind(TOKEN_INC);
     as_kind(TOKEN_SEMICOLON);
-
+    
     init_stream("x : int = 212; y : int = 23; if (x == y) y = 0;");
     assert(token.kind == TOKEN_NAME);
     assert(str_intern(token.name) == str_intern("x"));
@@ -513,20 +514,20 @@ void test_lex() {
     as_kind(TOKEN_ASSIGN);
     as_int(0);
     as_kind(TOKEN_SEMICOLON);
-
+    
     init_stream("'a' \"sadf12\" 'd' ");
     assert(token.kind == TOKEN_CHAR);
     assert(token.int_val == (int64_t)'a');
     as_string_literal("sadf12");
     as_char_literal('d');
-
+    
     init_stream("213.34 34 23e3  .34");
     assert(token.kind == TOKEN_FLOAT);
     assert(token.float_val == 213.34);
     as_int(34);
     as_float(23e3);
     as_float(.34);
-
+    
     init_stream("func main(argc:int, argv:*char[]): int { return 0; }");
     assert(token.kind = TOKEN_KEYWORD);
     assert(str_intern(token.name) == str_intern("func"));
