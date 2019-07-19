@@ -11,6 +11,7 @@
 
 #include "util.c"
 #include "lex.c"
+#include "ast.h"
 #include "parse.c"
 
 void test_keywords() {
@@ -22,10 +23,10 @@ int main() {
     init_keywords();
     test_keywords();
     test_lex();
-
+    
     token.kind = TOKEN_SUB;
     expect_token(TOKEN_SUB);
-
+    
     buf_test();
     str_intern_test();
     system("pause");

@@ -4,36 +4,54 @@
 
 // Actually, I think what returning types we need will become more clear further
 
-typedef enum ExprKind {
-    EXPR_NONE,
-    EXPR_PAREN,
-    EXPR_INT,
-    EXPR_FLOAT,
-    EXPR_STRING,
-    EXPR_NAME,
-    EXPR_CAST,
-    EXPR_CALL,
-    EXPR_INDEX,
-    EXPR_FIELD,
-    EXPR_COMPOUND,
-    EPXR_UNARY,
-    EXPR_BINARY,
-    EXPR_TERNARY,
-    EXPR_MODIFY, // Increment and decrement
-}ExprKind;
+Stmt *parse_stmt();
 
-typedef struct Expr Expr;
+typedef struct StmtList {
+    Stmt *stmts;
+    size_t num_stmts;
+} StmtList;
 
-struct Expr {
-    ExprKind kind;
+typedef struct ElseIf {
+    Expr *expr;
+    StmtList block;
+}ElseIf;
+
+typedef enum StmtKind {
+    STMT_NONE,
+    STMT_DECL,
+    STMT_RETURN,
+    STMT_BREAK,
+    STMT_CONTINUE,
+    STMT_BLOCK,
+    STMT_IF,
+    STMT_WHILE,
+    STMT_FOR,
+    STMT_SWITCH,
+    STMT_ASSIGN,
+    STMT_INIT,
+    STMT_EXPR
+}StmtKind;
+
+// NOTE: placeHolder
+typedef struct Decl {
+    int placeHolder;
+}Decl;
+
+typedef struct Stmt {
+    StmtKind kind;
     union {
+        Expr *expr;
+        Decl *decl;
         struct {
+            Stmt *init;
             Expr *cond;
-            Expr *then_expr;
-            Expr *else_expr;
-        }ternary_expr;
+            StmtList then_block;
+            ElseIf *elseifs;
+            size_t num_elseifs;
+            StmtList else_block;
+        }stmt_if;
     };
-};
+} Stmt;
 
 const char *token_kind_names[] = {
     [TOKEN_EOF] = "EOF",
@@ -93,7 +111,7 @@ inline bool is_token(TokenKind kind) {
     return token.kind == kind;
 }
 
-inline bool is_token_eof(TokenKind kind) {
+inline bool is_token_eof() {
     return kind == TOKEN_EOF;
 }
 
@@ -149,6 +167,13 @@ inline bool is_unary_op() {
 
 Expr *parse_expr();
 
+Expr *parse_paren_expr() {
+    expect_token(TOKEN_LPAREN);
+    Expr *expr = parse_expr();
+    expect_token(TOKEN_RPAREN);
+    return expr;
+}
+
 Expr *parse_compound_expr() {
     expect_token(TOKEN_LBRACE);
     CompoundField *fields = NULL;
@@ -174,9 +199,17 @@ Expr *parse_operand_expr() {
         read_token();
         //return new_float_expr(start, end, val);
     } else if (is_token(TOKEN_STRING)) {
-        
+        const char *val = token.str_val;
+        read_token();
+        //return new_str_expr();
     } else if (is_token(TOKEN_NAME)) {
-        
+        const char *name = token.name;
+        read_token();
+        if (is_token(TOKEN_LBRACE)) {
+            //return parse_compound_expr(new_typespec_name(&name, 1));
+        } else {
+            //return new_name_expr(name);
+        }
     } else if (is_token(TOKEN_LBRACE)) {
         return parse_compound_expr(NULL);
     } else if (match_token(TOKEN_LPAREN)) {
@@ -222,7 +255,7 @@ Expr *parse_base_expr() {
             read_token();
             const char *field = token.name;
             expect_token(TOKEN_NAME);
-            //expr = new_field_expr();
+            //expr = new_field_expr(expr);
         } else {
             assert(is_token(TOKEN_INC) || is_token(TOKEN_DEC));
             TokenKind op = token.kind;
@@ -271,6 +304,7 @@ Expr *parse_cmp_expr() {
     while (is_cmp_op()) {
         TokenKind op = token.kind;
         read_token();
+        // TODO: remove inconsistency in ast api
         //expr = new_cmp_expr(op, expr, parse_add_expr());
     }
     return expr;
@@ -308,10 +342,10 @@ Expr *parse_expr() {
     return parse_ternary_expr();
 }
 
-StmtList parse_stmt_block(){
+StmtList parse_stmt_block() {
     expect_token(TOKEN_LBRACE);
     Stmt **stmts = NULL;
-    while (!is_token_eof() && !is_token(TOKEN_RBRACE)){
+    while (!is_token_eof() && !is_token(TOKEN_RBRACE)) {
         buf_push(stmts, parse_stmt());
     }
     expect_token(TOKEN_RBRACE);
@@ -354,7 +388,7 @@ Stmt *parse_simple_stmt() {
 Stmt *parse_stmt_if() {
     expect_token(TOKEN_LPAREN);
     Expr *cond = parse_expr();
-    Stmt *init = parse_init_stmt();
+    Stmt *init = parse_init_stmt(cond);
     if (init) {
         // So it allows: 'if (x := 42; x >= 0)' 
         if (match_token(TOKEN_SEMICOLON)) {
@@ -390,19 +424,19 @@ Stmt *parse_stmt_for() {
     Expr *cond = NULL;
     Stmt *next = NULL;
     // This means that we allow: for { ... } == for (;;) { ... }
-    if (!is_token(TOKEN_LBRACE)){
+    if (!is_token(TOKEN_LBRACE)) {
         expect_token(TOKEN_LPAREN);
-        if (!is_token(TOKEN_SEMICOLON)){
+        if (!is_token(TOKEN_SEMICOLON)) {
             init = parse_simple_stmt();
         }
-        if (match_token(TOKEN_SEMICOLON)){
-            if (!is_token(TOKEN_SEMICOLON)){
+        if (match_token(TOKEN_SEMICOLON)) {
+            if (!is_token(TOKEN_SEMICOLON)) {
                 cond = parse_expr();
             }
-            if (match_token(TOKEN_SEMICOLON)){
-                if (!is_token(TOKEN_RPAREN)){
+            if (match_token(TOKEN_SEMICOLON)) {
+                if (!is_token(TOKEN_RPAREN)) {
                     next = parse_simple_stmt();
-                    if (next->kind == STMT_INIT){
+                    if (next->kind == STMT_INIT) {
                         // Error: Init statements are not allowed in for-statement's next clause
                         assert(0);
                     }
@@ -414,9 +448,74 @@ Stmt *parse_stmt_for() {
     return new_stmt_for(init, cond, next, parse_stmt_block());
 }
 
+// I don't  understand what is the puprose of this struct
+typedef struct SwitchCasePattern {
+    Expr *start;
+    Expr *end;
+} SwitchCasePattern;
+
+typedef struct SwitchCase {
+    SwitchCasePattern *patterns;
+    size_t num_patterns;
+    bool is_default;
+    StmtList block;
+} SwitchCase;
+
+SwitchCasePattern parse_switch_case_pattern() {
+    Expr *start = parse_expr();
+    Expr *end = NULL;
+    if (match_token(TOKEN_ELLIPSIS)) {
+        end = parse_expr();
+    }
+    return (SwitchCasePattern) { start, end };
+}
+
+SwitchCase parse_stmt_switch_case() {
+    SwitchCasePattern *patterns = NULL;
+    bool is_default = false;
+    bool is_first_case = true;
+    while (is_keyword(keyword_case) || is_keyword(keyword_default)) {
+        if (match_keyword(keyword_case)) {
+            if (!is_first_case) {
+                // Warning: Use comma-separated expressions to match multiple values with one case label
+                is_first_case = false;
+            }
+            buf_push(patterns, parse_switch_case_pattern());
+            while (match_token(TOKEN_COMMA)) {
+                buf_push(patterns, parse_switch_case_pattern());
+            }
+        } else {
+            assert(is_keyword(keyword_default));
+            read_token();
+            if (is_default) {
+                // Error: Duplicate default labels in same switch clause
+                assert(0);
+            }
+            is_default = true;
+        }
+        expect_token(TOKEN_COLON);
+    }
+    Stmt **stmts = NULL;
+    while (!is_token_eof() && !is_token(TOKEN_RBRACE) && !is_keyword(keyword_case) && !is_keyword(keyword_default)) {
+        buf_push(stmts, parse_stmt());
+    }
+    return (SwitchCase) { patterns, buf_len(patterns), is_default, new_stmt_list(stmts, buf_len(stmts)) };
+}
+
+Stmt *parse_stmt_switch() {
+    Expr *expr = parse_paren_expr();
+    SwitchCase *cases = NULL;
+    expect_token(TOKEN_LBRACE);
+    while (!is_token_eof() && !is_token(TOKEN_RBRACE)) {
+        buf_push(cases, parse_stmt_switch_case());
+    }
+    expect_token(TOKEN_RBRACE);
+    return new_stmt_switch(expr, cases, buf_len(cases));
+}
+
 // TODO: UNTESTED
 Stmt *parse_stmt() {
-    Stmt *stms = NULL;
+    Stmt *stmt = NULL;
     if (match_keyword(keyword_if)) {
         stmt = parse_stmt_if();
     } else if (match_keyword(keyword_while)) {
@@ -441,7 +540,7 @@ Stmt *parse_stmt() {
         expect_token(TOKEN_SEMICOLON);
         //stmt = new_stmt_return(expr);
     } else {
-        stms = parse_simple_stmt();
+        stmt = parse_simple_stmt();
         expect_token(TOKEN_SEMICOLON);
     }
     return stmt;
