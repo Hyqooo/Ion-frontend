@@ -145,11 +145,6 @@ typedef enum StmtKind {
     STMT_EXPR
 }StmtKind;
 
-// NOTE: placeHolder
-struct Decl {
-    int placeHolder;
-};
-
 struct Stmt {
     StmtKind kind;
     union {
@@ -166,7 +161,7 @@ struct Stmt {
     };
 };
 
-// I don't  understand what is the puprose of this struct
+// I don't understand what is the puprose of this struct
 typedef struct SwitchCasePattern {
     Expr *start;
     Expr *end;
@@ -178,3 +173,81 @@ typedef struct SwitchCase {
     bool is_default;
     StmtList block;
 } SwitchCase;
+
+typedef enum DeclKind {
+    DECL_NONE,
+    DECL_ENUM, 
+    DECL_STRUCT,
+    DECL_UNION,
+    DECL_VAR,
+    DECL_CONST,
+    DECL_FUNC,
+} DeclKind;
+
+typedef enum AggregateItemKind {
+    AGGREGATE_ITEM_NONE,
+    AGGREGATE_ITEM_FIELD,
+    AGGREGATE_ITEM_SUBAGGREGATE
+}AggregateItemKind;
+
+typedef struct AggregateItem {
+    AggregateItemKind kind;
+    union {
+        struct {
+            const char **names;
+            size_t num_names;
+            Typespec *type;
+        };
+        struct Aggregate *subaggregate;
+    };
+} AggregateItem;
+
+typedef enum AggregateKind {
+    AGGREGATE_NONE,
+    AGGREGATE_STRUCT,
+    AGGREGATE_UNION
+} AggregateKind;
+
+typedef struct Aggregate {
+    AggregateKind kind;
+    AggregateItem *items;
+    size_t num_items;
+} Aggregate;
+
+typedef struct EnumItem {
+    const char *name;
+    Expr *init;
+} EnumItem;
+
+typedef struct FuncParam {
+    const char *name;
+    Typespec *type;
+} FuncParam;
+
+struct Decl {
+    DeclKind kind;
+    const char *name;
+    bool is_incomplete;
+    union {
+        Typespec *type;
+        EnumItem *items;
+        size_t num_items;
+    } enum_decl;
+    Aggregate *aggregate;
+    union {
+        Typespec *type;
+        Expr *expr;
+    } const_decl;
+    union {
+        Typespec *type;
+        Expr *expr;
+    } var_decl;
+    union {
+        FuncParam *params;
+        size_t num_params;
+        Typespec *ret_type;
+        bool has_varargs;
+        Typespec *varargs_type;
+        StmtList block;
+    } func_decl;
+};
