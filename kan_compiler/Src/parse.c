@@ -6,53 +6,6 @@
 
 Stmt *parse_stmt();
 
-typedef struct StmtList {
-    Stmt *stmts;
-    size_t num_stmts;
-} StmtList;
-
-typedef struct ElseIf {
-    Expr *expr;
-    StmtList block;
-}ElseIf;
-
-typedef enum StmtKind {
-    STMT_NONE,
-    STMT_DECL,
-    STMT_RETURN,
-    STMT_BREAK,
-    STMT_CONTINUE,
-    STMT_BLOCK,
-    STMT_IF,
-    STMT_WHILE,
-    STMT_FOR,
-    STMT_SWITCH,
-    STMT_ASSIGN,
-    STMT_INIT,
-    STMT_EXPR
-}StmtKind;
-
-// NOTE: placeHolder
-typedef struct Decl {
-    int placeHolder;
-}Decl;
-
-typedef struct Stmt {
-    StmtKind kind;
-    union {
-        Expr *expr;
-        Decl *decl;
-        struct {
-            Stmt *init;
-            Expr *cond;
-            StmtList then_block;
-            ElseIf *elseifs;
-            size_t num_elseifs;
-            StmtList else_block;
-        }stmt_if;
-    };
-} Stmt;
-
 const char *token_kind_names[] = {
     [TOKEN_EOF] = "EOF",
     [TOKEN_COLON] = ":",
@@ -112,7 +65,7 @@ inline bool is_token(TokenKind kind) {
 }
 
 inline bool is_token_eof() {
-    return kind == TOKEN_EOF;
+    return token.kind == TOKEN_EOF;
 }
 
 bool expect_token(TokenKind expected_token) {
@@ -172,6 +125,25 @@ Expr *parse_paren_expr() {
     Expr *expr = parse_expr();
     expect_token(TOKEN_RPAREN);
     return expr;
+}
+
+CompoundField parse_compound_field_expr(){
+    if (match_token(TOKEN_LBRACKET)){
+        Expr *index = parse_expr();
+        expect_token(TOKEN_RBRACKET);
+        expect_token(TOKEN_ASSIGN);
+        return (CompoundField){FIELD_INDEX, parse_expr(), .index = index};
+    } else {
+        Expr *expr = parse_expr();
+        if (match_token(TOKEN_ASSIGN)){
+            if (expr->kind != EXPR_NAME){
+                // Error: Named initializer in compound literal must be preceded by field name
+                assert(0);
+            }
+        } else {
+            return (CompoundField){FIELD_DEFAULT, expr};
+        }
+    }
 }
 
 Expr *parse_compound_expr() {
@@ -408,7 +380,7 @@ Stmt *parse_stmt_if() {
         }
         Expr *elseif_cond = parse_paren_expr();
         StmtList elseif_block = parse_stmt_block();
-        buf_push(elseifs, (ElseIf) { elseif_cond, elseif_block });
+        buf_push(elseifs, ((ElseIf){ elseif_cond, elseif_block }));
     }
     // TODO: there's no new_stmt_if()
     return new_stmt_if(init, cond, then_block, elseifs, buf_len(elseifs), else_block);
@@ -447,19 +419,6 @@ Stmt *parse_stmt_for() {
     }
     return new_stmt_for(init, cond, next, parse_stmt_block());
 }
-
-// I don't  understand what is the puprose of this struct
-typedef struct SwitchCasePattern {
-    Expr *start;
-    Expr *end;
-} SwitchCasePattern;
-
-typedef struct SwitchCase {
-    SwitchCasePattern *patterns;
-    size_t num_patterns;
-    bool is_default;
-    StmtList block;
-} SwitchCase;
 
 SwitchCasePattern parse_switch_case_pattern() {
     Expr *start = parse_expr();
