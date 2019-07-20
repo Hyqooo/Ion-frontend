@@ -79,7 +79,6 @@ typedef enum TokenKind {
     TOKEN_COLON_ASSIGN
 }TokenKind;
 
-// Supports only integer decimal values
 typedef struct Token {
     TokenKind kind;
     const char *start;

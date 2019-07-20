@@ -46,6 +46,7 @@ const char *token_kind_names[] = {
     [TOKEN_AND_AND] = "&&",
     [TOKEN_OR_OR] = "||",
     [TOKEN_ASSIGN] = "=",
+    [TOKEN_ELLIPSIS] = "...",
     [TOKEN_ADD_ASSIGN] = "+=",
     [TOKEN_SUB_ASSIGN] = "-=",
     [TOKEN_OR_ASSIGN] = "|=",
@@ -60,6 +61,14 @@ const char *token_kind_names[] = {
     [TOKEN_DEC] = "--",
     [TOKEN_COLON_ASSIGN] = ":=",
 };
+
+const char *token_kind_name(TokenKind kind) {
+    if (kind < sizeof(token_kind_names) / sizeof(*token_kind_names)) {
+        return token_kind_names[kind];
+    } else {
+        return "<unknown>";
+    }
+}
 
 inline bool is_token(TokenKind kind) {
     return token.kind == kind;

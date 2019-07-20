@@ -127,12 +127,12 @@ struct Expr {
 };
 
 typedef struct StmtList {
-    Stmt *stmts;
+    Stmt **stmts;
     size_t num_stmts;
 } StmtList;
 
 typedef struct ElseIf {
-    Expr *expr;
+    Expr *cond;
     StmtList block;
 }ElseIf;
 

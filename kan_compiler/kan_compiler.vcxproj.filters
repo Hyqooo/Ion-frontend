@@ -30,6 +30,9 @@
     <ClCompile Include="Src\ast.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Src\print.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Src\ast.h">
