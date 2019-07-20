@@ -22,6 +22,12 @@ struct Typespec {
             size_t num_names;
         };
         Expr *num_elems;
+        struct {
+            Typespec **args;
+            size_t num_args;
+            bool has_varargs;
+            Typespec *ret;
+        } func;
     };
 };
 
@@ -37,7 +43,7 @@ typedef enum ExprKind {
     EXPR_INDEX,
     EXPR_FIELD,
     EXPR_COMPOUND,
-    EPXR_UNARY,
+    EXPR_UNARY,
     EXPR_BINARY,
     EXPR_TERNARY,
     EXPR_MODIFY, // Increment and decrement
@@ -90,7 +96,7 @@ struct Expr {
             Expr *cond;
             Expr *then_expr;
             Expr *else_expr;
-        }ternary_expr;
+        }ternary;
         struct {
             TokenKind op;
             Expr *expr;
@@ -102,6 +108,7 @@ struct Expr {
         }modify;
         struct {
             Expr *expr;
+            const char *name;
         }field;
         struct {
             Expr *expr;
@@ -145,11 +152,13 @@ typedef enum StmtKind {
     STMT_EXPR
 }StmtKind;
 
+typedef struct SwitchCase SwitchCase;
 struct Stmt {
     StmtKind kind;
     union {
         Expr *expr;
         Decl *decl;
+        StmtList block;
         struct {
             Stmt *init;
             Expr *cond;
@@ -157,22 +166,48 @@ struct Stmt {
             ElseIf *elseifs;
             size_t num_elseifs;
             StmtList else_block;
-        }stmt_if;
+        } stmt_if;
+        struct {
+            Expr *cond;
+            StmtList block;
+        } stmt_while;
+        struct {
+            Expr *expr;
+            SwitchCase *cases;
+            size_t num_cases;
+        } stmt_switch;
+        struct {
+            Stmt *init;
+            Expr *cond;
+            Stmt *next;
+            StmtList block;
+        } stmt_for;
+        struct {
+            const char *name;
+            Typespec *type;
+            Expr *expr;
+            bool is_undef;
+        } init;
+        struct {
+            TokenKind op;
+            Expr *left;
+            Expr *right;
+        } assign;
     };
 };
 
-// I don't understand what is the puprose of this struct
+// I don't understand what is the purpose of this struct
 typedef struct SwitchCasePattern {
     Expr *start;
     Expr *end;
 } SwitchCasePattern;
 
-typedef struct SwitchCase {
+struct SwitchCase {
     SwitchCasePattern *patterns;
     size_t num_patterns;
     bool is_default;
     StmtList block;
-} SwitchCase;
+};
 
 typedef enum DeclKind {
     DECL_NONE,

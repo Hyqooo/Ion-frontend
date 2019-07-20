@@ -5,6 +5,7 @@
 // Actually, I think what returning types we need will become more clear further
 
 Stmt *parse_stmt();
+Expr *parse_unary_expr();
 
 const char *token_kind_names[] = {
     [TOKEN_EOF] = "EOF",
@@ -171,7 +172,7 @@ Typespec *parse_type_func(){
     if (match_token(TOKEN_COLON)){
         ret = parse_type();
     }
-    //return new_typespec_func(args, buf_len(args), ret, has_varargs);
+    return new_typespec_func(args, buf_len(args), ret, has_varargs);
 }
 
 Typespec *parse_type(){
@@ -183,9 +184,9 @@ Typespec *parse_type(){
                 size = parse_expr();
             }
             expect_token(TOKEN_RBRACKET);
-            //type = new_typespec_array(type, size);
+            type = new_typespec_array(type, size);
         } else if (match_keyword(keyword_const)){
-            //type = new_typespec_const(type);
+            type = new_typespec_const(type);
         } else {
             assert(is_token(TOKEN_MUL));
             read_token();
@@ -193,6 +194,7 @@ Typespec *parse_type(){
             //type = new_typespec_ptr(type);
         }
     }
+    return type;
 }
 
 Typespec *parse_type_base() {
@@ -203,7 +205,7 @@ Typespec *parse_type_base() {
         while (match_token(TOKEN_DOT)){
             buf_push(names, parse_name());
         }
-        //return new_typespec_naem(names, buf_len(names));
+        return new_typespec_name(names, buf_len(names));
     } else if (match_keyword(keyword_func)){
         return parse_type_func();
     } else if (match_token(TOKEN_LPAREN)){
@@ -213,6 +215,7 @@ Typespec *parse_type_base() {
     } else if (match_token(TOKEN_LBRACE)){
         assert(0);
         //return parse_type_tuple();
+        return NULL;
     } else {
         // Error: Unexpected token in type
         assert(0);
@@ -240,13 +243,16 @@ CompoundField parse_compound_field_expr(){
                 // Error: Named initializer in compound literal must be preceded by field name
                 assert(0);
             }
+            return (CompoundField) {
+                FIELD_NAME, parse_expr(), .name = expr->name
+            };
         } else {
             return (CompoundField){FIELD_DEFAULT, expr};
         }
     }
 }
 
-Expr *parse_compound_expr() {
+Expr *parse_compound_expr(Typespec *type) {
     expect_token(TOKEN_LBRACE);
     CompoundField *fields = NULL;
     while (!is_token(TOKEN_RBRACE)) {
@@ -256,31 +262,31 @@ Expr *parse_compound_expr() {
         }
     }
     expect_token(TOKEN_RBRACE);
-    //return new_compound_expr(type, fields, buf_len(fields));
+    return new_compound_expr(type, fields, buf_len(fields));
 }
 
 Expr *parse_operand_expr() {
     if (is_token(TOKEN_INT)) {
         unsigned long long val = token.int_val;
         read_token();
-        //return new_int_expr(val);
+        return new_int_expr(val);
     } else if (is_token(TOKEN_FLOAT)) {
         const char *start = token.start;
         const char *end = token.end;
         double val = token.float_val;
         read_token();
-        //return new_float_expr(start, end, val);
+        return new_float_expr(start, end, val);
     } else if (is_token(TOKEN_STRING)) {
         const char *val = token.str_val;
         read_token();
-        //return new_str_expr();
+        return new_str_expr(val);
     } else if (is_token(TOKEN_NAME)) {
         const char *name = token.name;
         read_token();
         if (is_token(TOKEN_LBRACE)) {
-            //return parse_compound_expr(new_typespec_name(&name, 1));
+            return parse_compound_expr(new_typespec_name(&name, 1));
         } else {
-            //return new_name_expr(name);
+            return new_name_expr(name);
         }
     } else if (is_token(TOKEN_LBRACE)) {
         return parse_compound_expr(NULL);
@@ -292,12 +298,12 @@ Expr *parse_operand_expr() {
                 return parse_compound_expr(type);
             } else {
                 // Why is there no 'cast' word?
-                //return new_cast_expr(type, parse_expr_unary());
+                return new_cast_expr(type, parse_unary_expr());
             }
         } else {
             Expr *expr = parse_expr();
             expect_token(TOKEN_RPAREN);
-            //return new_expr_paren(expr);
+            return new_paren_expr(expr);
         }
     } else {
         // Error: unexpected token in epxression
@@ -318,23 +324,24 @@ Expr *parse_base_expr() {
                 }
             }
             expect_token(TOKEN_RPAREN);
-            //expr = new_call_expr(expr, args, buf_len(args));
+            expr = new_call_expr(expr, args, buf_len(args));
         } else if (match_token(TOKEN_LBRACKET)) {
             Expr *index = parse_expr();
             expect_token(TOKEN_RBRACKET);
-            //expr = new_index_expr(expr, index);
+            expr = new_index_expr(expr, index);
         } else if (is_token(TOKEN_DOT)) {
             read_token();
             const char *field = token.name;
             expect_token(TOKEN_NAME);
-            //expr = new_field_expr(expr);
+            expr = new_field_expr(expr, field);
         } else {
             assert(is_token(TOKEN_INC) || is_token(TOKEN_DEC));
             TokenKind op = token.kind;
             read_token();
-            //expr = new_modify_expr(op, true, expr);
+            expr = new_modify_expr(op, true, expr);
         }
     }
+    return expr;
 }
 
 Expr *parse_unary_expr() {
@@ -342,9 +349,9 @@ Expr *parse_unary_expr() {
         TokenKind op = token.kind;
         read_token();
         if (op == TOKEN_INC || op == TOKEN_DEC) {
-            //return new_modify_expr(op, false, parse_expr_unary());
+            return new_modify_expr(op, false, parse_unary_expr());
         } else {
-            //return new_unary_expr(op, parse_expr_unary());
+            return new_unary_expr(op, parse_unary_expr());
         }
     } else {
         return parse_base_expr();
@@ -354,9 +361,9 @@ Expr *parse_unary_expr() {
 Expr *parse_mul_expr() {
     Expr *expr = parse_unary_expr();
     while (is_mul_op()) {
-        TokenKind kind = token.kind;
+        TokenKind op = token.kind;
         read_token();
-        //expr = new_binary_expr(op, expr, parse_unary_expr());
+        expr = new_binary_expr(op, expr, parse_unary_expr());
     }
     return expr;
 }
@@ -366,7 +373,7 @@ Expr *parse_add_expr() {
     while (is_add_op()) {
         TokenKind op = token.kind;
         read_token();
-        //expr = new_binary_expr(op, expr, parse_mul_expr());
+        expr = new_binary_expr(op, expr, parse_mul_expr());
     }
     return expr;
 }
@@ -376,8 +383,7 @@ Expr *parse_cmp_expr() {
     while (is_cmp_op()) {
         TokenKind op = token.kind;
         read_token();
-        // TODO: remove inconsistency in ast api
-        //expr = new_cmp_expr(op, expr, parse_add_expr());
+        expr = new_binary_expr(op, expr, parse_add_expr());
     }
     return expr;
 }
@@ -385,7 +391,7 @@ Expr *parse_cmp_expr() {
 Expr *parse_and_expr() {
     Expr *expr = parse_cmp_expr();
     while (match_token(TOKEN_AND_AND)) {
-        //expr = new_expr_binary(TOKEN_AND_AND, expr, parse_cmp_expr());
+        expr = new_binary_expr(TOKEN_AND_AND, expr, parse_cmp_expr());
     }
     return expr;
 }
@@ -393,7 +399,7 @@ Expr *parse_and_expr() {
 Expr *parse_or_expr() {
     Expr *expr = parse_and_expr();
     while (match_token(TOKEN_OR_OR)) {
-        //epxr = new_expr_binary(TOKEN_OR_OR, expr, parse_and_expr());
+        expr = new_binary_expr(TOKEN_OR_OR, expr, parse_and_expr());
     }
     return expr;
 }
@@ -404,7 +410,7 @@ Expr *parse_ternary_expr() {
         Expr *then_expr = parse_ternary_expr();
         expect_token(TOKEN_COLON);
         Expr *else_expr = parse_ternary_expr();
-        //expr = new_expr_ternary(expr, then_expr, else_expr);
+        expr = new_ternary_expr(expr, then_expr, else_expr);
     }
     
     return expr;
@@ -421,7 +427,7 @@ StmtList parse_stmt_block() {
         buf_push(stmts, parse_stmt());
     }
     expect_token(TOKEN_RBRACE);
-    //return new_stmt_list(stmts, buf_len(stmts));
+    return new_stmt_list(stmts, buf_len(stmts));
 }
 
 Stmt *parse_init_stmt(Expr *left) {
@@ -430,9 +436,7 @@ Stmt *parse_init_stmt(Expr *left) {
             // Error: := must be preceded by a name
             return NULL;
         }
-        //return new_stmt_init(left->name, NULL, parse_expr(), false);
-        
-        // The second else if statement are deleted because I think I don't need statement inside if name: Type = expr
+        return new_stmt_init(left->name, NULL, parse_expr(), false);
     } else {
         return NULL;
     }
@@ -449,9 +453,9 @@ Stmt *parse_simple_stmt() {
         if (is_assign_op()) {
             TokenKind op = token.kind;
             read_token();
-            //stmt = new_stmt_assign(op, expr, parse_expr());
+            stmt = new_stmt_assign(op, expr, parse_expr());
         } else {
-            //stmt = new_stmt_expr(expr);
+            stmt = new_stmt_expr(expr);
         }
     }
     return stmt;
@@ -482,13 +486,12 @@ Stmt *parse_stmt_if() {
         StmtList elseif_block = parse_stmt_block();
         buf_push(elseifs, ((ElseIf){ elseif_cond, elseif_block }));
     }
-    // TODO: there's no new_stmt_if()
-    //return new_stmt_if(init, cond, then_block, elseifs, buf_len(elseifs), else_block);
+    return new_stmt_if(init, cond, then_block, elseifs, buf_len(elseifs), else_block);
 }
 
 Stmt *parse_stmt_while() {
     Expr *cond = parse_paren_expr();
-    //return new_stmt_while(cond, parse_stmt_block());
+    return new_stmt_while(cond, parse_stmt_block());
 }
 
 Stmt *parse_stmt_for() {
@@ -517,7 +520,7 @@ Stmt *parse_stmt_for() {
         }
         expect_token(TOKEN_RPAREN);
     }
-    //return new_stmt_for(init, cond, next, parse_stmt_block());
+    return new_stmt_for(init, cond, next, parse_stmt_block());
 }
 
 SwitchCasePattern parse_switch_case_pattern() {
@@ -558,7 +561,7 @@ SwitchCase parse_stmt_switch_case() {
     while (!is_token_eof() && !is_token(TOKEN_RBRACE) && !is_keyword(keyword_case) && !is_keyword(keyword_default)) {
         buf_push(stmts, parse_stmt());
     }
-    //return (SwitchCase) { patterns, buf_len(patterns), is_default, new_stmt_list(stmts, buf_len(stmts)) };
+    return (SwitchCase) { patterns, buf_len(patterns), is_default, new_stmt_list(stmts, buf_len(stmts)) };
 }
 
 Stmt *parse_stmt_switch() {
@@ -569,7 +572,7 @@ Stmt *parse_stmt_switch() {
         buf_push(cases, parse_stmt_switch_case());
     }
     expect_token(TOKEN_RBRACE);
-    //return new_stmt_switch(expr, cases, buf_len(cases));
+    return new_stmt_switch(expr, cases, buf_len(cases));
 }
 
 // TODO: UNTESTED
@@ -584,20 +587,21 @@ Stmt *parse_stmt() {
     } else if (match_keyword(keyword_switch)) {
         stmt = parse_stmt_switch();
     } else if (is_token(TOKEN_LBRACE)) {
-        //stmt = new_stmt_block(parse_stmt_block());
+        stmt = new_stmt_block(parse_stmt_block());
     } else if (match_keyword(keyword_break)) {
         expect_token(TOKEN_SEMICOLON);
-        //stmt = new_stmt_break();
+        stmt = new_stmt_break();
     } else if (match_keyword(keyword_continue)) {
         expect_token(TOKEN_SEMICOLON);
         // Each (new_*) call can be provided with pos within a file for more accurate error signaling
-        //stmt = new_stmt_continue();
+        stmt = new_stmt_continue();
     } else if (match_keyword(keyword_return)) {
+        Expr *expr = NULL;
         if (!is_token(TOKEN_SEMICOLON)) {
-            Expr *expr = parse_expr();
+            expr = parse_expr();
         }
         expect_token(TOKEN_SEMICOLON);
-        //stmt = new_stmt_return(expr);
+        stmt = new_stmt_return(expr);
     } else {
         stmt = parse_simple_stmt();
         expect_token(TOKEN_SEMICOLON);
@@ -632,7 +636,7 @@ Decl *parse_decl_enum() {
         }
     }
     expect_token(TOKEN_RBRACE);
-    //return new_decl_enum(name, type, items, buf_len(items));
+    return new_decl_enum(name, type, items, buf_len(items));
 }
 
 AggregateItem parse_decl_aggregate_item();
@@ -644,7 +648,7 @@ Aggregate *parse_aggregate(AggregateKind kind){
         buf_push(items, parse_decl_aggregate_item());
     }
     expect_token(TOKEN_RBRACE);
-    //return new_aggregate(kind, items, buf_len(items));
+    return new_aggregate(kind, items, buf_len(items));
 }
 
 
@@ -682,11 +686,11 @@ Decl *parse_decl_aggregate(DeclKind kind) {
     const char *name = NULL;
     AggregateKind aggregate_kind = kind == DECL_STRUCT ? AGGREGATE_STRUCT : AGGREGATE_UNION;
     if (match_token(TOKEN_SEMICOLON)){
-        Decl *decl = NULL; // new_decl_aggregate(kind, name, new_aggregate(aggregate_kind, NULL, 0));
+        Decl *decl = new_decl_aggregate(kind, name, new_aggregate(aggregate_kind, NULL, 0));
         decl->is_incomplete = true;
         return decl;
     } else {
-        //return new_decl_aggregate(kind, name, name, parse_aggregate(aggregate_kind));
+        return new_decl_aggregate(kind, name, parse_aggregate(aggregate_kind));
     }
 }
 
@@ -699,7 +703,7 @@ Decl *parse_decl_const() {
     expect_token(TOKEN_ASSIGN);
     Expr *expr = parse_expr();
     expect_token(TOKEN_SEMICOLON);
-    //return new_decl_const(name, type, expr);
+    return new_decl_const(name, type, expr);
 }
 
 Decl *parse_decl_var() {
@@ -708,7 +712,7 @@ Decl *parse_decl_var() {
         Expr *expr = parse_expr();
         expect_token(TOKEN_SEMICOLON);
         // We don't know a type of a variable yet
-        //return new_decl_var(name, NULL, expr);
+        return new_decl_var(name, NULL, expr);
     } else if (match_token(TOKEN_COLON)){
         Typespec *type = parse_type();
         Expr *expr = NULL;
@@ -716,7 +720,7 @@ Decl *parse_decl_var() {
             expr = parse_expr();
         }
         expect_token(TOKEN_SEMICOLON);
-        //return new_decl_var(name, type, expr);
+        return new_decl_var(name, type, expr);
     } else {
         // Error: Expected : or = after var
         assert(0);
@@ -771,7 +775,7 @@ Decl *parse_decl_func(){
         block = parse_stmt_block();
         is_incomplete = false;
     }
-    Decl *decl = NULL; // new_decl_func(name, params, buf_len(params), ret_type, has_varargs, varargs_type, block);
+    Decl *decl =new_decl_func(name, params, buf_len(params), ret_type, has_varargs, varargs_type, block);
     decl->is_incomplete = is_incomplete;
     return decl;
 }

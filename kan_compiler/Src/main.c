@@ -12,6 +12,7 @@
 #include "util.c"
 #include "lex.c"
 #include "ast.h"
+#include "ast.c"
 #include "parse.c"
 
 void test_keywords() {
