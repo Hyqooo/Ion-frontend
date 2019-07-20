@@ -1,5 +1,5 @@
-# kan_compiler
-Toy system programming language
+# Compiler's frontend
+Frontend for c-like programming language - ion
 
-This compiler is highly influenced by the educational project bitwise
-https://github.com/pervognsen/bitwise
+Frontend is influenced by educational project bitwise
+  - https://github.com/pervognsen/bitwise
