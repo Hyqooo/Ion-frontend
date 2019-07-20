@@ -17,13 +17,22 @@
 #include "print.c"
 
 void test_keywords() {
+    token.kind = TOKEN_KEYWORD;
+    token.name = str_intern("while");
     assert(is_keyword(str_intern("while")) == true);
     assert(is_keyword(str_intern("somethingelse")) == false);
 }
 
 void parse_test(){
     const char *decls[] = {
-        "var x: char[256] = {1,2,3, ['a'] = 4}"
+        "struct Be { x: Vector; size: int; };",
+        "struct Vector { x, y: float; }",
+        "var x: int = 3;",
+        "var x: char[256] = {1,2,3, [4] = 4};",
+        "func main() { return 3; }",
+        "func main(argc: int, argv:char):int { return 3; }",
+        "func main(argc: int, argv:char):int { x := 14; y := 4; y += x; return y; }",
+        "func max(x:int, y:int):int { return x > y ? x : y; }",
     };
     for (const char **it = decls; it != decls + sizeof(decls)/sizeof(*decls); it++){
         init_stream(*it);
@@ -37,9 +46,6 @@ int main() {
     init_keywords();
     test_keywords();
     test_lex();
-    
-    token.kind = TOKEN_SUB;
-    expect_token(TOKEN_SUB);
     
     buf_test();
     str_intern_test();

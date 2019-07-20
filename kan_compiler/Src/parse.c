@@ -74,6 +74,10 @@ inline bool is_token(TokenKind kind) {
     return token.kind == kind;
 }
 
+inline bool is_keyword(const char *name) {
+    return is_token(TOKEN_KEYWORD) && token.name == name;
+}
+
 inline bool is_token_eof() {
     return token.kind == TOKEN_EOF;
 }
@@ -84,7 +88,7 @@ bool expect_token(TokenKind expected_token) {
         return true;
     } else {
         // TODO: unknown token
-        printf("Expected token %s, got %s", token_kind_names[expected_token], token_kind_names[token.kind]);
+        fprintf(stderr, "Expected token %s, got %s", token_kind_names[expected_token], token_kind_names[token.kind]);
         return false;
     }
 }
@@ -100,6 +104,7 @@ bool match_token(TokenKind kind) {
 
 bool match_keyword(const char *keyword) {
     if (is_keyword(keyword)) {
+        read_token();
         return true;
     } else {
         return false;
@@ -692,7 +697,7 @@ AggregateItem parse_decl_aggregate_item() {
 
 Decl *parse_decl_aggregate(DeclKind kind) {
     assert(kind == DECL_STRUCT || kind == DECL_UNION);
-    const char *name = NULL;
+    const char *name = parse_name();
     AggregateKind aggregate_kind = kind == DECL_STRUCT ? AGGREGATE_STRUCT : AGGREGATE_UNION;
     if (match_token(TOKEN_SEMICOLON)){
         Decl *decl = new_decl_aggregate(kind, name, new_aggregate(aggregate_kind, NULL, 0));

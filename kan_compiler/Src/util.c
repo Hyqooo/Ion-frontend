@@ -67,7 +67,7 @@ inline bool is_power_of_two(uintptr_t x) {
 
 // Arena allocator
 #define DEFAULT_ALIGNMENT 8
-#define ARENA_BLOCK_SIZE 1024
+#define ARENA_BLOCK_SIZE 1024 * 1024
 
 #define ALIGN_DOWN(n, a) ((n) & ~((a) - 1))
 #define ALIGN_UP(n, a) ALIGN_DOWN((n) + (a) - 1, (a))

@@ -264,25 +264,27 @@ struct Decl {
     const char *name;
     bool is_incomplete;
     union {
-        Typespec *type;
-        EnumItem *items;
-        size_t num_items;
-    } enum_decl;
-    Aggregate *aggregate;
-    union {
-        Typespec *type;
-        Expr *expr;
-    } const_decl;
-    union {
-        Typespec *type;
-        Expr *expr;
-    } var_decl;
-    union {
-        FuncParam *params;
-        size_t num_params;
-        Typespec *ret_type;
-        bool has_varargs;
-        Typespec *varargs_type;
-        StmtList block;
-    } func_decl;
+        struct {
+            Typespec *type;
+            EnumItem *items;
+            size_t num_items;
+        } enum_decl;
+        Aggregate *aggregate;
+        struct {
+            Typespec *type;
+            Expr *expr;
+        } const_decl;
+        struct {
+            Typespec *type;
+            Expr *expr;
+        } var_decl;
+        struct {
+            FuncParam *params;
+            size_t num_params;
+            Typespec *ret_type;
+            bool has_varargs;
+            Typespec *varargs_type;
+            StmtList block;
+        } func_decl;
+    };
 };

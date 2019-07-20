@@ -125,8 +125,8 @@ void init_keywords() {
     is_initialized = true;
 }
 
-inline bool is_keyword(const char *name) {
-    return (name >= first_keyword && name <= last_keyword) ? true : false;
+bool is_keyword_name(const char *name) {
+    return first_keyword <= name && name <= last_keyword;
 }
 
 #define CASE1(c, k) \
@@ -365,7 +365,7 @@ void read_token() {
                 stream++;
             }
             token.name = str_intern_range(start, stream);
-            token.kind = is_keyword(token.name) ? TOKEN_KEYWORD : TOKEN_NAME;
+            token.kind = is_keyword_name(token.name) ? TOKEN_KEYWORD : TOKEN_NAME;
             break;
         }
         case '<': {

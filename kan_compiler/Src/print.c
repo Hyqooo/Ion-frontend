@@ -117,86 +117,14 @@ void print_expr(Expr *expr){
 
 void print_aggregate_decl(Decl *decl){
     Decl *d = decl;
-    switch(d->kind){
-        case DECL_ENUM:{
-            printf("(enum %s", d->name);
-            indent++;
-            for (EnumItem *it = d->enum_decl.items; it != d->enum_decl.items + d->enum_decl.num_items; it++){
-                print_newline();
-                printf("(%s ", it->name);
-                if (it->init){
-                    print_expr(it->init);
-                } else {
-                    printf("nil");
-                }
-                printf(")");
-            }
-            indent--;
-            printf(")");
-            break;
+    for (AggregateItem *it = d->aggregate->items; it != d->aggregate->items + d->aggregate->num_items; it++) {
+        print_newline();
+        printf("(");
+        for (const char **name = it->names; name != it->names + it->num_names; name++) {
+            printf("%s ", *name);
         }
-        case DECL_STRUCT:{
-            printf("(struct %s", d->name);
-            indent++;
-            print_aggregate_decl(d);
-            indent--;
-            printf(")");
-            break;
-        }
-        case DECL_UNION:{
-            printf("(union %s", d->name);
-            indent++;
-            print_aggregate_decl(d);
-            indent--;
-            printf(")");
-            break;
-        }
-        case DECL_VAR:{
-            printf("(var %s ", d->name);
-            if (d->var_decl.type){
-                print_typespec(d->var_decl.type);
-            } else {
-                printf("nil");
-            }
-            printf(" ");
-            if (d->var_decl.expr){
-                print_expr(d->var_decl.expr);
-            } else {
-                printf("nil");
-            }
-            printf(")");
-            break;
-        }
-        case DECL_CONST:{
-            printf("(const %s ", d->name);
-            print_expr(d->const_decl.expr);
-            printf(")");
-            break;
-        }
-        case DECL_FUNC:{
-            printf("(func %s ", d->name);
-            printf("(");
-            for (FuncParam *it = d->func_decl.params; it != d->func_decl.params + d->func_decl.num_params; it++){
-                printf(" %s ", it->name);
-                print_typespec(it->type);
-            }
-            printf(" ) ");
-            if (d->func_decl.ret_type){
-                print_typespec(d->func_decl.ret_type);
-            } else {
-                printf("nil");
-            }
-            indent++;
-            print_newline();
-            print_stmt_block(d->func_decl.block);
-            indent--;
-            printf(")");
-            break;
-        }
-        default:{
-            assert(0);
-            break;
-        }
+        print_typespec(it->type);
+        printf(")");
     }
 }
 
@@ -215,6 +143,14 @@ void print_typespec(Typespec *type){
                 printf(" ");
                 print_typespec(*it);
             }
+            break;
+        }
+        case TYPESPEC_ARRAY: {
+            printf("(array ");
+            print_typespec(t->base);
+            printf(" ");
+            print_expr(t->num_elems);
+            printf(")");
             break;
         }
         default:{
