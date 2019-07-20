@@ -118,6 +118,10 @@ inline bool is_unary_op() {
         is_token(TOKEN_DEC);
 }
 
+inline bool is_assign_op(){
+    return token.kind >= TOKEN_FIRST_ASSIGN && token.kind <= TOKEN_LAST_ASSIGN;
+}
+
 Expr *parse_expr();
 Typespec *parse_type_base();
 Typespec *parse_type();
@@ -167,7 +171,7 @@ Typespec *parse_type_func(){
     if (match_token(TOKEN_COLON)){
         ret = parse_type();
     }
-    return new_typespec_func(args, buf_len(args), ret, has_varargs);
+    //return new_typespec_func(args, buf_len(args), ret, has_varargs);
 }
 
 Typespec *parse_type(){
@@ -206,7 +210,7 @@ Typespec *parse_type_base() {
         Typespec *type = parse_type();
         expect_token(TOKEN_RPAREN);
         return type;
-    } else if (match_keyword(TOKEN_LBRACE)){
+    } else if (match_token(TOKEN_LBRACE)){
         assert(0);
         //return parse_type_tuple();
     } else {
@@ -303,7 +307,7 @@ Expr *parse_operand_expr() {
 }
 
 Expr *parse_base_expr() {
-    Expr *expr = parse_expr_operand();
+    Expr *expr = parse_operand_expr();
     while (is_token(TOKEN_LPAREN) || is_token(TOKEN_LBRACKET) || is_token(TOKEN_DOT) || is_token(TOKEN_INC) || is_token(TOKEN_DEC)) {
         if (match_token(TOKEN_LPAREN)) {
             Expr **args = NULL;
@@ -426,7 +430,7 @@ Stmt *parse_init_stmt(Expr *left) {
             // Error: := must be preceded by a name
             return NULL;
         }
-        return new_stmt_init(left->name, NULL, parse_expr(), false);
+        //return new_stmt_init(left->name, NULL, parse_expr(), false);
         
         // The second else if statement are deleted because I think I don't need statement inside if name: Type = expr
     } else {
@@ -479,12 +483,12 @@ Stmt *parse_stmt_if() {
         buf_push(elseifs, ((ElseIf){ elseif_cond, elseif_block }));
     }
     // TODO: there's no new_stmt_if()
-    return new_stmt_if(init, cond, then_block, elseifs, buf_len(elseifs), else_block);
+    //return new_stmt_if(init, cond, then_block, elseifs, buf_len(elseifs), else_block);
 }
 
 Stmt *parse_stmt_while() {
     Expr *cond = parse_paren_expr();
-    return new_stmt_while(cond, parse_stmt_block());
+    //return new_stmt_while(cond, parse_stmt_block());
 }
 
 Stmt *parse_stmt_for() {
@@ -513,7 +517,7 @@ Stmt *parse_stmt_for() {
         }
         expect_token(TOKEN_RPAREN);
     }
-    return new_stmt_for(init, cond, next, parse_stmt_block());
+    //return new_stmt_for(init, cond, next, parse_stmt_block());
 }
 
 SwitchCasePattern parse_switch_case_pattern() {
@@ -554,7 +558,7 @@ SwitchCase parse_stmt_switch_case() {
     while (!is_token_eof() && !is_token(TOKEN_RBRACE) && !is_keyword(keyword_case) && !is_keyword(keyword_default)) {
         buf_push(stmts, parse_stmt());
     }
-    return (SwitchCase) { patterns, buf_len(patterns), is_default, new_stmt_list(stmts, buf_len(stmts)) };
+    //return (SwitchCase) { patterns, buf_len(patterns), is_default, new_stmt_list(stmts, buf_len(stmts)) };
 }
 
 Stmt *parse_stmt_switch() {
@@ -565,7 +569,7 @@ Stmt *parse_stmt_switch() {
         buf_push(cases, parse_stmt_switch_case());
     }
     expect_token(TOKEN_RBRACE);
-    return new_stmt_switch(expr, cases, buf_len(cases));
+    //return new_stmt_switch(expr, cases, buf_len(cases));
 }
 
 // TODO: UNTESTED
@@ -678,11 +682,11 @@ Decl *parse_decl_aggregate(DeclKind kind) {
     const char *name = NULL;
     AggregateKind aggregate_kind = kind == DECL_STRUCT ? AGGREGATE_STRUCT : AGGREGATE_UNION;
     if (match_token(TOKEN_SEMICOLON)){
-        Decl *decl = new_decl_aggregate(kind, name, new_aggregate(aggregate_kind, NULL, 0));
+        Decl *decl = NULL; // new_decl_aggregate(kind, name, new_aggregate(aggregate_kind, NULL, 0));
         decl->is_incomplete = true;
         return decl;
     } else {
-        return new_decl_aggregate(kind, name, name, parse_aggregate(aggregate_kind));
+        //return new_decl_aggregate(kind, name, name, parse_aggregate(aggregate_kind));
     }
 }
 
@@ -702,9 +706,9 @@ Decl *parse_decl_var() {
     const char *name = parse_name();
     if (match_token(TOKEN_ASSIGN)){
         Expr *expr = parse_expr();
-        expec_token(TOKEN_SEMICOLON);
+        expect_token(TOKEN_SEMICOLON);
         // We don't know a type of a variable yet
-        return new_decl_var(name, NULL, expr);
+        //return new_decl_var(name, NULL, expr);
     } else if (match_token(TOKEN_COLON)){
         Typespec *type = parse_type();
         Expr *expr = NULL;
@@ -712,7 +716,7 @@ Decl *parse_decl_var() {
             expr = parse_expr();
         }
         expect_token(TOKEN_SEMICOLON);
-        return new_decl_var(name, type, expr);
+        //return new_decl_var(name, type, expr);
     } else {
         // Error: Expected : or = after var
         assert(0);

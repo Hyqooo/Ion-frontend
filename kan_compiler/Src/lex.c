@@ -27,6 +27,7 @@ typedef enum TokenKind {
     TOKEN_RBRACKET,
     TOKEN_COMMA,
     TOKEN_DOT,
+    TOKEN_ELLIPSIS,
     TOKEN_QUESTION,
     TOKEN_SEMICOLON,
     TOKEN_KEYWORD,
@@ -60,7 +61,8 @@ typedef enum TokenKind {
     TOKEN_AND_AND,
     TOKEN_OR_OR,
     // Assignment operators
-    TOKEN_ASSIGN,
+    TOKEN_FIRST_ASSIGN,
+    TOKEN_ASSIGN = TOKEN_FIRST_ASSIGN,
     TOKEN_ADD_ASSIGN,
     TOKEN_SUB_ASSIGN,
     TOKEN_MOD_ASSIGN,
@@ -71,6 +73,7 @@ typedef enum TokenKind {
     TOKEN_XOR_ASSIGN,
     TOKEN_OR_ASSIGN,
     TOKEN_AND_ASSIGN,
+    TOKEN_LAST_ASSIGN = TOKEN_AND_ASSIGN,
     TOKEN_INC,
     TOKEN_DEC,
     TOKEN_COLON_ASSIGN
@@ -307,12 +310,13 @@ void read_token() {
     repeat:
     token.start = stream;
     switch (*stream) {
-        case '\t': case '\b': case '\n': case '\v': case '\r': case ' ':
-        while (isspace(*stream)) {
-            stream++;
+        case '\t': case '\b': case '\n': case '\v': case '\r': case ' ':{
+            while (isspace(*stream)) {
+                stream++;
+            }
+            goto repeat;
+            break;
         }
-        goto repeat;
-        break;
         case '\'': {
             process_char();
             break;
@@ -325,11 +329,18 @@ void read_token() {
             if (isdigit(stream[1])) {
                 process_float();
             } else {
-                token.kind = TOKEN_DOT;
-                stream++;
+                if (stream[1] != '.'){
+                    token.kind = TOKEN_DOT;
+                } else if (stream[1] == '.' && stream[2] == '.') {
+                    token.kind = TOKEN_ELLIPSIS;
+                    stream += 3;
+                } else {
+                    token.kind = TOKEN_DOT;
+                    stream++;
+                }
             }
             break;
-        }
+        } 
         case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9': case '0': {
             while (isdigit(*stream)) {
                 stream++;
