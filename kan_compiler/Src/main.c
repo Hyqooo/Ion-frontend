@@ -15,6 +15,7 @@
 #include "ast.c"
 #include "parse.c"
 #include "print.c"
+#include "resolve.c"
 
 void test_keywords() {
     token.kind = TOKEN_KEYWORD;
@@ -25,6 +26,9 @@ void test_keywords() {
 
 void parse_test(){
     const char *decls[] = {
+        // NOTE: Isn't that should be resolved?
+        "enum = int { TOKEN, POKEN };",
+        "enum { };",
         "struct Be { x: Vector; size: int; };",
         "struct Vector { x, y: float; }",
         "var x: int = 3;",
