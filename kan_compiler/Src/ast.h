@@ -15,25 +15,31 @@ typedef enum TypespecKind {
 
 struct Typespec {
     TypespecKind kind;
-    Typespec *base;
+    struct Type *type;
     union {
-        struct {
-            const char **names;
-            size_t num_names;
-        };
-        Expr *num_elems;
+        const char *name;
         struct {
             Typespec **args;
             size_t num_args;
-            bool has_varargs;
             Typespec *ret;
         } func;
+        struct {
+            Typespec *elem;
+            Expr *size;
+        } array;
+        struct {
+            Typespec *elem;
+        } ptr;
     };
 };
 
+typedef struct DeclSet{
+    Decl **decls;
+    size_t num_decls;
+} DeclSet;
+
 typedef enum ExprKind {
     EXPR_NONE,
-    EXPR_PAREN,
     EXPR_INT,
     EXPR_FLOAT,
     EXPR_STRING,
@@ -46,7 +52,8 @@ typedef enum ExprKind {
     EXPR_UNARY,
     EXPR_BINARY,
     EXPR_TERNARY,
-    EXPR_MODIFY, // Increment and decrement
+    EXPR_SIZEOF_EXPR,
+    EXPR_SIZEOF_TYPE,
 }ExprKind;
 
 typedef enum CompoundFieldKind {
@@ -66,22 +73,14 @@ typedef struct CompoundField {
 
 struct Expr {
     ExprKind kind;
+    struct Type *type;
     union {
         const char *name;
-        struct {
-            unsigned long long val;
-        }int_lit;
-        struct {
-            const char *start;
-            const char *end;
-            double val;
-        }float_lit;
-        struct {
-            const char *val;
-        }string_lit;
-        struct {
-            Expr *expr;
-        }paren_expr;
+        int64_t int_val;
+        double float_val;
+        const char *str_val;
+        Expr *sizeof_expr;
+        Typespec *sizeof_type;
         struct {
             TokenKind op;
             Expr *left;
@@ -101,11 +100,6 @@ struct Expr {
             TokenKind op;
             Expr *expr;
         }unary;
-        struct {
-            TokenKind op;
-            bool post;
-            Expr *expr;
-        }modify;
         struct {
             Expr *expr;
             const char *name;
@@ -203,8 +197,8 @@ typedef struct SwitchCasePattern {
 } SwitchCasePattern;
 
 struct SwitchCase {
-    SwitchCasePattern *patterns;
-    size_t num_patterns;
+    Expr **exprs;
+    size_t num_exprs;
     bool is_default;
     StmtList block;
 };
@@ -216,6 +210,7 @@ typedef enum DeclKind {
     DECL_UNION,
     DECL_VAR,
     DECL_CONST,
+    DECL_TYPEDEF,
     DECL_FUNC,
 } DeclKind;
 
@@ -226,15 +221,9 @@ typedef enum AggregateItemKind {
 }AggregateItemKind;
 
 typedef struct AggregateItem {
-    AggregateItemKind kind;
-    union {
-        struct {
-            const char **names;
-            size_t num_names;
-            Typespec *type;
-        };
-        struct Aggregate *subaggregate;
-    };
+    const char **names;
+    size_t num_names;
+    Typespec *type;
 } AggregateItem;
 
 typedef enum AggregateKind {
@@ -262,29 +251,31 @@ typedef struct FuncParam {
 struct Decl {
     DeclKind kind;
     const char *name;
-    bool is_incomplete;
+    struct Sym *sym;
     union {
         struct {
-            Typespec *type;
             EnumItem *items;
             size_t num_items;
         } enum_decl;
-        Aggregate *aggregate;
         struct {
-            Typespec *type;
+            AggregateItem *items;
+            size_t num_items;
+        } aggregate;
+        struct {
             Expr *expr;
         } const_decl;
-        struct {
-            Typespec *type;
-            Expr *expr;
-        } var_decl;
         struct {
             FuncParam *params;
             size_t num_params;
             Typespec *ret_type;
-            bool has_varargs;
-            Typespec *varargs_type;
             StmtList block;
         } func_decl;
+        struct {
+            Typespec *type;
+        } typedef_decl;
+        struct {
+            Typespec *type;
+            Expr *expr;
+        } var;
     };
 };

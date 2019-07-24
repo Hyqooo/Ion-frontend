@@ -186,12 +186,12 @@ Typespec *parse_type_func(){
     if (match_token(TOKEN_COLON)){
         ret = parse_type();
     }
-    return new_typespec_func(args, buf_len(args), ret, has_varargs);
+    return new_typespec_func(args, buf_len(args), ret);
 }
 
 Typespec *parse_type(){
     Typespec *type = parse_type_base();
-    while (is_token(TOKEN_LBRACKET) || is_token(TOKEN_MUL) || is_keyword(keyword_const)){
+    while (is_token(TOKEN_LBRACKET) || is_token(TOKEN_MUL)){
         if (match_token(TOKEN_LBRACKET)){
             Expr *size = NULL;
             if (!is_token(TOKEN_RBRACKET)){
@@ -199,13 +199,10 @@ Typespec *parse_type(){
             }
             expect_token(TOKEN_RBRACKET);
             type = new_typespec_array(type, size);
-        } else if (match_keyword(keyword_const)){
-            type = new_typespec_const(type);
         } else {
             assert(is_token(TOKEN_MUL));
             read_token();
-            // NOTE: I don't remember if I want to do pointers or not
-            //type = new_typespec_ptr(type);
+            type = new_typespec_ptr(type);
         }
     }
     return type;
@@ -213,23 +210,15 @@ Typespec *parse_type(){
 
 Typespec *parse_type_base() {
     if (is_token(TOKEN_NAME)){
-        const char **names = NULL;
-        buf_push(names, token.name);
+        const char *name = token.name;
         read_token();
-        while (match_token(TOKEN_DOT)){
-            buf_push(names, parse_name());
-        }
-        return new_typespec_name(names, buf_len(names));
+        return new_typespec_name(name);
     } else if (match_keyword(keyword_func)){
         return parse_type_func();
     } else if (match_token(TOKEN_LPAREN)){
         Typespec *type = parse_type();
         expect_token(TOKEN_RPAREN);
         return type;
-    } else if (match_token(TOKEN_LBRACE)){
-        assert(0);
-        //return parse_type_tuple();
-        return NULL;
     } else {
         // Error: Unexpected token in type
         assert(0);
@@ -298,7 +287,7 @@ Expr *parse_operand_expr() {
         const char *name = token.name;
         read_token();
         if (is_token(TOKEN_LBRACE)) {
-            return parse_compound_expr(new_typespec_name(&name, 1));
+            return parse_compound_expr(new_typespec_name(name));
         } else {
             return new_name_expr(name);
         }
@@ -317,7 +306,7 @@ Expr *parse_operand_expr() {
         } else {
             Expr *expr = parse_expr();
             expect_token(TOKEN_RPAREN);
-            return new_paren_expr(expr);
+            return expr;
         }
     } else {
         // Error: unexpected token in epxression
@@ -328,7 +317,7 @@ Expr *parse_operand_expr() {
 
 Expr *parse_base_expr() {
     Expr *expr = parse_operand_expr();
-    while (is_token(TOKEN_LPAREN) || is_token(TOKEN_LBRACKET) || is_token(TOKEN_DOT) || is_token(TOKEN_INC) || is_token(TOKEN_DEC)) {
+    while (is_token(TOKEN_LPAREN) || is_token(TOKEN_LBRACKET) || is_token(TOKEN_DOT)) {
         if (match_token(TOKEN_LPAREN)) {
             Expr **args = NULL;
             if (!is_token(TOKEN_RPAREN)) {
@@ -343,16 +332,12 @@ Expr *parse_base_expr() {
             Expr *index = parse_expr();
             expect_token(TOKEN_RBRACKET);
             expr = new_index_expr(expr, index);
-        } else if (is_token(TOKEN_DOT)) {
+        } else {
+            assert(is_token(TOKEN_DOT));
             read_token();
             const char *field = token.name;
             expect_token(TOKEN_NAME);
             expr = new_field_expr(expr, field);
-        } else {
-            assert(is_token(TOKEN_INC) || is_token(TOKEN_DEC));
-            TokenKind op = token.kind;
-            read_token();
-            expr = new_modify_expr(op, true, expr);
         }
     }
     return expr;
@@ -362,11 +347,7 @@ Expr *parse_unary_expr() {
     if (is_unary_op()) {
         TokenKind op = token.kind;
         read_token();
-        if (op == TOKEN_INC || op == TOKEN_DEC) {
-            return new_modify_expr(op, false, parse_unary_expr());
-        } else {
-            return new_unary_expr(op, parse_unary_expr());
-        }
+        return new_unary_expr(op, parse_unary_expr());
     } else {
         return parse_base_expr();
     }
@@ -547,35 +528,26 @@ SwitchCasePattern parse_switch_case_pattern() {
 }
 
 SwitchCase parse_stmt_switch_case() {
-    SwitchCasePattern *patterns = NULL;
+    Expr **exprs = NULL;
     bool is_default = false;
-    bool is_first_case = true;
-    while (is_keyword(keyword_case) || is_keyword(keyword_default)) {
-        if (match_keyword(keyword_case)) {
-            if (!is_first_case) {
-                // Warning: Use comma-separated expressions to match multiple values with one case label
-                is_first_case = false;
-            }
-            buf_push(patterns, parse_switch_case_pattern());
-            while (match_token(TOKEN_COMMA)) {
-                buf_push(patterns, parse_switch_case_pattern());
-            }
+    while (is_keyword(keyword_case) || is_keyword(keyword_default)){
+        if (match_keyword(keyword_case)){
+            buf_push(exprs, parse_expr());
         } else {
             assert(is_keyword(keyword_default));
             read_token();
-            if (is_default) {
-                // Error: Duplicate default labels in same switch clause
-                assert(0);
+            if (is_default){
+                // Error: duplicate default labels in same switch clause
             }
             is_default = true;
         }
         expect_token(TOKEN_COLON);
     }
     Stmt **stmts = NULL;
-    while (!is_token_eof() && !is_token(TOKEN_RBRACE) && !is_keyword(keyword_case) && !is_keyword(keyword_default)) {
+    while (!is_token_eof() && !is_token(TOKEN_RBRACE) && !is_keyword(keyword_default)){
         buf_push(stmts, parse_stmt());
     }
-    return (SwitchCase) { patterns, buf_len(patterns), is_default, new_stmt_list(stmts, buf_len(stmts)) };
+    return (SwitchCase){exprs, buf_len(exprs), is_default, new_stmt_list(stmts, buf_len(stmts))};
 }
 
 Stmt *parse_stmt_switch() {
@@ -667,45 +639,27 @@ Aggregate *parse_aggregate(AggregateKind kind){
 
 
 AggregateItem parse_decl_aggregate_item() {
-    if (match_keyword(keyword_struct)){
-        return (AggregateItem) {
-            .kind = AGGREGATE_ITEM_SUBAGGREGATE,
-            .subaggregate = parse_aggregate(AGGREGATE_STRUCT)
-        };
-    } else if (match_keyword(keyword_union)){
-        return (AggregateItem) {
-            .kind = AGGREGATE_ITEM_SUBAGGREGATE,
-            .subaggregate = parse_aggregate(AGGREGATE_UNION),
-        };
-    } else {
-        const char **names = NULL;
+    const char **names = NULL;
+    buf_push(names, parse_name());
+    while (match_token(TOKEN_COMMA)){
         buf_push(names, parse_name());
-        while (match_token(TOKEN_COMMA)){
-            buf_push(names, parse_name());
-        }
-        expect_token(TOKEN_COLON);
-        Typespec *type = parse_type();
-        expect_token(TOKEN_SEMICOLON);
-        return (AggregateItem){
-            .kind = AGGREGATE_ITEM_FIELD,
-            .names = names,
-            .num_names = buf_len(names),
-            .type = type,
-        };
     }
+    expect_token(TOKEN_COLON);
+    Typespec *type = parse_type();
+    expect_token(TOKEN_SEMICOLON);
+    return (AggregateItem){names, buf_len(names), type};
 }
 
 Decl *parse_decl_aggregate(DeclKind kind) {
     assert(kind == DECL_STRUCT || kind == DECL_UNION);
     const char *name = parse_name();
-    AggregateKind aggregate_kind = kind == DECL_STRUCT ? AGGREGATE_STRUCT : AGGREGATE_UNION;
-    if (match_token(TOKEN_SEMICOLON)){
-        Decl *decl = new_decl_aggregate(kind, name, new_aggregate(aggregate_kind, NULL, 0));
-        decl->is_incomplete = true;
-        return decl;
-    } else {
-        return new_decl_aggregate(kind, name, parse_aggregate(aggregate_kind));
+    expect_token(TOKEN_LBRACE);
+    AggregateItem *items = NULL;
+    while (!is_token_eof() && !is_token(TOKEN_RBRACE)){
+        buf_push(items, parse_decl_aggregate_item());
     }
+    expect_token(TOKEN_RBRACE);
+    return new_decl_aggregate(kind, name, items, buf_len(items));
 }
 
 Decl *parse_decl_const() {
@@ -753,27 +707,10 @@ Decl *parse_decl_func(){
     const char *name = parse_name();
     expect_token(TOKEN_LPAREN);
     FuncParam *params = NULL;
-    bool has_varargs = false;
-    Typespec *varargs_type = NULL;
     if (!is_token(TOKEN_RPAREN)){
         buf_push(params, parse_decl_func_param());
         while (match_token(TOKEN_COMMA)){
-            if (match_token(TOKEN_ELLIPSIS)){
-                if (has_varargs){
-                    // Error: Multiple ellipsis in function declaration
-                    assert(0);
-                }
-                if (!is_token(TOKEN_RPAREN)){
-                    varargs_type = parse_type();
-                }
-                has_varargs = true;
-            } else {
-                if (has_varargs){
-                    // Error: Ellipsis must be last paremter in function delcaration
-                    assert(0);
-                }
-                buf_push(params, parse_decl_func_param());
-            }
+            buf_push(params, parse_decl_func_param());
         }
     }
     expect_token(TOKEN_RPAREN);
@@ -781,17 +718,8 @@ Decl *parse_decl_func(){
     if (match_token(TOKEN_COLON)){
         ret_type = parse_type();
     }
-    StmtList block = {0};
-    bool is_incomplete;
-    if (match_token(TOKEN_SEMICOLON)){
-        is_incomplete = true;
-    } else {
-        block = parse_stmt_block();
-        is_incomplete = false;
-    }
-    Decl *decl =new_decl_func(name, params, buf_len(params), ret_type, has_varargs, varargs_type, block);
-    decl->is_incomplete = is_incomplete;
-    return decl;
+    StmtList block = parse_stmt_block();
+    return new_decl_func(name, params, buf_len(params), ret_type, block);
 }
 
 Decl *parse_decl_opt(){

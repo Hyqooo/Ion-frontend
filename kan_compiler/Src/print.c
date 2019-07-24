@@ -12,15 +12,15 @@ void print_expr(Expr *expr){
     Expr *e = expr;
     switch(e->kind){
         case EXPR_INT:{
-            printf("%llu", e->int_lit.val);
+            printf("%llu", e->int_val);
             break;
         }
         case EXPR_FLOAT:{
-            printf("%f", e->float_lit.val);
+            printf("%f", e->float_val);
             break;
         }
         case EXPR_STRING:{
-            printf("\"%s\"", e->string_lit.val);
+            printf("\"%s\"", e->str_val);
             break;
         }
         case EXPR_NAME:{
@@ -117,7 +117,7 @@ void print_expr(Expr *expr){
 
 void print_aggregate_decl(Decl *decl){
     Decl *d = decl;
-    for (AggregateItem *it = d->aggregate->items; it != d->aggregate->items + d->aggregate->num_items; it++) {
+    for (AggregateItem *it = d->aggregate.items; it != d->aggregate.items + d->aggregate.num_items; it++) {
         print_newline();
         printf("(");
         for (const char **name = it->names; name != it->names + it->num_names; name++) {
@@ -132,9 +132,7 @@ void print_typespec(Typespec *type){
     Typespec *t = type;
     switch(t->kind){
         case TYPESPEC_NAME:{
-            for (const char **it = t->names; it != t->names + t->num_names; it++){
-                printf("%s", *it);
-            }
+            printf("%s", t->name);
             break;
         }
         case TYPESPEC_FUNC:{
@@ -147,9 +145,9 @@ void print_typespec(Typespec *type){
         }
         case TYPESPEC_ARRAY: {
             printf("(array ");
-            print_typespec(t->base);
+            print_typespec(t->array.elem);
             printf(" ");
-            print_expr(t->num_elems);
+            print_expr(t->array.size);
             printf(")");
             break;
         }
@@ -327,14 +325,14 @@ void print_decl(Decl *decl){
         }
         case DECL_VAR: {
             printf("(var %s ", decl->name);
-            if (decl->var_decl.type){
-                print_typespec(decl->var_decl.type);
+            if (decl->var.type){
+                print_typespec(decl->var.type);
             } else {
                 printf("nil");
             }
             printf(" ");
-            if (decl->var_decl.expr){
-                print_expr(decl->var_decl.expr);
+            if (decl->var.expr){
+                print_expr(decl->var.expr);
             } else {
                 printf("nil");
             }

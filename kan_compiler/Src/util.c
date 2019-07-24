@@ -4,6 +4,15 @@ typedef struct BufHdr {
     char buf[];
 }BufHdr;
 
+void *xcalloc(size_t num_elems, size_t elem_size){
+    void *ptr = calloc(num_elems, elem_size);
+    if (!ptr){
+        perror("xcalloc failed");
+        exit(1);
+    }
+    return ptr;
+}
+
 void *xrealloc(void *ptr, size_t elem_size) {
     ptr = realloc(ptr, elem_size);
     if (!ptr) {
@@ -22,6 +31,12 @@ void *xmalloc(size_t num_bytes) {
     return ptr;
 }
 
+void *memdup(void *src, size_t size){
+    void *dest = xmalloc(size);
+    memcpy(dest, src, size);
+    return dest;
+}
+
 #define MAX(a, b) (a > b ? a : b)
 
 #define buf__hdr(b) ((BufHdr *)((char *)b - offsetof(BufHdr, buf)))
@@ -29,6 +44,7 @@ void *xmalloc(size_t num_bytes) {
 #define buf__fit(b, n) (buf__fits(b, n) ? 0 : ((b) = buf__grow((b), buf_len(b) + (n), sizeof(*(b)))))
 
 #define buf_len(b) ((b) ? buf__hdr(b)->len : 0)
+#define buf_end(b) ((b) + buf_len((b)))
 #define buf_cap(b) ((b) ? buf__hdr(b)->cap : 0)
 #define buf_push(b, x) (buf__fit(b, 1), b[buf_len(b)] = (x), buf__hdr(b)->len++)
 #define buf_free(b) ((b) ? free(buf__hdr(b)) : 0)
@@ -73,6 +89,7 @@ inline bool is_power_of_two(uintptr_t x) {
 #define ALIGN_UP(n, a) ALIGN_DOWN((n) + (a) - 1, (a))
 #define ALIGN_PTR_DOWN(p, a) ((void *)ALIGN_DOWN((uintptr_t)(p), (a)))
 #define ALIGN_PTR_UP(p, a) ((void *)ALIGN_UP((uintptr_t)(p), (a)))
+#define IS_POW2(x) (((x) != 0) && ((x) & ((x) - 1)))
 
 typedef struct Arena {
     char *ptr;

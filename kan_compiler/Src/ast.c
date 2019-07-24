@@ -27,32 +27,30 @@ Typespec *new_typespec(TypespecKind kind){
     return t;
 }
 
-Typespec *new_typespec_func(Typespec **args, size_t num_args, Typespec *ret, bool has_varargs){
+Typespec *new_typespec_func(Typespec **args, size_t num_args, Typespec *ret){
     Typespec *t = new_typespec(TYPESPEC_FUNC);
     t->func.args = AST_DUP(args);
     t->func.num_args = num_args;
     t->func.ret = ret;
-    t->func.has_varargs = has_varargs;
     return t;
 }
 
-Typespec *new_typespec_const(Typespec *base){
-    Typespec *t = new_typespec(TYPESPEC_CONST);
-    t->base = base;
-    return t;
-}
-
-Typespec *new_typespec_array(Typespec *base, Expr *num_elems){
-    Typespec *t = new_typespec(TYPESPEC_ARRAY);
-    t->base = base;
-    t->num_elems = num_elems;
-    return t;
-}
-
-Typespec *new_typespec_name(const char **names, size_t num_names){
+Typespec *new_typespec_ptr(Typespec *elem){
     Typespec *t = new_typespec(TYPESPEC_NAME);
-    t->names = AST_DUP(names);
-    t->num_names = num_names;
+    t->ptr.elem = elem;
+    return t;
+}
+
+Typespec *new_typespec_array(Typespec *elem, Expr *size){
+    Typespec *t = new_typespec(TYPESPEC_ARRAY);
+    t->array.elem = elem;
+    t->array.size = size;
+    return t;
+}
+
+Typespec *new_typespec_name(const char *name){
+    Typespec *t = new_typespec(TYPESPEC_NAME);
+    t->name = name;
     return t;
 }
 
@@ -85,14 +83,6 @@ Expr *new_unary_expr(TokenKind op, Expr *expr){
     return e;
 }
 
-Expr *new_modify_expr(TokenKind op, bool post, Expr *expr){
-    Expr *e = new_expr(EXPR_MODIFY);
-    e->modify.op = op;
-    e->modify.post = post;
-    e->modify.expr = expr;
-    return e;
-}
-
 Expr *new_field_expr(Expr *expr, const char *name){
     Expr *e = new_expr(EXPR_FIELD);
     e->field.expr = expr;
@@ -116,12 +106,6 @@ Expr *new_call_expr(Expr *expr, Expr **args, size_t num_args){
     return e;
 }
 
-Expr *new_paren_expr(Expr *expr){
-    Expr *e = new_expr(EXPR_PAREN);
-    e->paren_expr.expr = expr;
-    return e;
-}
-
 Expr *new_cast_expr(Typespec *type, Expr *expr){
     Expr *e = new_expr(EXPR_CAST);
     e->cast.type = type;
@@ -137,21 +121,19 @@ Expr *new_name_expr(const char *name){
 
 Expr *new_str_expr(const char *str_val){
     Expr *e = new_expr(EXPR_STRING);
-    e->string_lit.val = str_val;
+    e->str_val = str_val;
     return e;
 }
 
 Expr *new_float_expr(const char *start, const char *end, double val){
     Expr *e = new_expr(EXPR_FLOAT);
-    e->float_lit.start = start;
-    e->float_lit.end = end;
-    e->float_lit.val = val;
+    e->float_val = val;
     return e;
 }
 
 Expr *new_int_expr(unsigned long long val){
     Expr *e = new_expr(EXPR_INT);
-    e->int_lit.val = val;
+    e->int_val = val;
     return e;
 }
 
@@ -260,7 +242,6 @@ Decl *new_decl(DeclKind kind, const char *name){
 
 Decl *new_decl_enum(const char *name, Typespec *type, EnumItem *items, size_t num_items){
     Decl *d = new_decl(DECL_ENUM, name);
-    d->enum_decl.type = type;
     d->enum_decl.items = AST_DUP(items);
     d->enum_decl.num_items = num_items;
     return d;
@@ -274,34 +255,32 @@ Aggregate *new_aggregate(AggregateKind kind, AggregateItem *items, size_t num_it
     return aggregate;
 }
 
-Decl *new_decl_aggregate(DeclKind kind, const char *name, Aggregate *aggregate){
+Decl *new_decl_aggregate(DeclKind kind, const char *name, AggregateItem *items, size_t num_items){
     assert(kind == DECL_STRUCT || kind == DECL_UNION);
     Decl *d = new_decl(kind, name);
-    d->aggregate = aggregate;
+    d->aggregate.items = AST_DUP(items);
+    d->aggregate.num_items = num_items;
     return d;
 }
 
 Decl *new_decl_const(const char *name, Typespec *type, Expr *expr){
     Decl *d = new_decl(DECL_CONST, name);
-    d->const_decl.type = type;
     d->const_decl.expr = expr;
     return d;
 }
 
 Decl *new_decl_var(const char *name, Typespec *type, Expr *expr){
     Decl *d = new_decl(DECL_VAR, name);
-    d->var_decl.type = type;
-    d->var_decl.expr = expr;
+    d->var.type = type;
+    d->var.expr = expr;
     return d;
 }
 
-Decl *new_decl_func(const char *name, FuncParam *params, size_t num_params, Typespec *ret_type, bool has_varargs, Typespec *varargs_type, StmtList block){
+Decl *new_decl_func(const char *name, FuncParam *params, size_t num_params, Typespec *ret_type, StmtList block){
     Decl *d = new_decl(DECL_FUNC, name);
     d->func_decl.params = AST_DUP(params);
     d->func_decl.num_params = num_params;
     d->func_decl.ret_type = ret_type;
-    d->func_decl.has_varargs = has_varargs;
-    d->func_decl.varargs_type = varargs_type;
     d->func_decl.block = block;
     return d;
 }
